@@ -553,6 +553,18 @@
   /* hint */
   .hint { font-size: 0.73rem; color: var(--text-dim); margin-top: 4px; font-family: var(--mono); }
 </style>
+
+<!-- PWA Meta — auto-injected by PWA 打包神器 -->
+<meta name="application-name" content="GitHub打包上傳">
+<meta name="description" content="GitHub-打包上傳">
+<meta name="theme-color" content="#1a73e8">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="打包上傳">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.svg">
+<script>if('serviceWorker'in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').then(function(r){console.log('[SW] registered:',r.scope)}).catch(function(e){console.warn('[SW] failed:',e)});});}</script>
 </head>
 <body>
 
@@ -1302,15 +1314,15 @@ function generateIndexHTML(raw, cfg, opts) {
 
   const inject = `
 <!-- PWA Meta — auto-injected by PWA 打包神器 -->
-<meta name="application-name" content="${esc(cfg.name)}">
+
 <meta name="description" content="${esc(cfg.desc)}">
-<meta name="theme-color" content="${cfg.theme}">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="${esc(cfg.short)}">
-<link rel="manifest" href="manifest.json">
-<link rel="apple-touch-icon" href="icon.svg">
+
+
+
+
+
+
+
 ${swBlock}`;
 
   // ── Step 3: Insert before </head> ──
