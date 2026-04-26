@@ -1,6 +1,6 @@
-# 打包神器
+# GitHub打包上傳
 
-> Github打包上傳
+> GitHub-打包上傳
 
 ## 📦 包含檔案
 
@@ -18,7 +18,7 @@
 ```bash
 git init
 git add .
-git commit -m "init: 打包神器 PWA"
+git commit -m "init: GitHub打包上傳 PWA"
 git branch -M main
 git remote add origin https://github.com/<username>/<repo>.git
 git push -u origin main
