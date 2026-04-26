@@ -1,0 +1,1968 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PWA 打包神器</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Noto+Sans+TC:wght@400;700;900&display=swap');
+
+  :root {
+    --bg: #0a0e1a;
+    --surface: #111827;
+    --border: #1e2d45;
+    --accent: #00d4ff;
+    --accent2: #7c3aed;
+    --accent3: #10b981;
+    --warn: #f59e0b;
+    --danger: #ef4444;
+    --text: #e2e8f0;
+    --text-dim: #64748b;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Noto Sans TC', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 32px 20px 80px;
+  }
+
+  /* Header */
+  header {
+    text-align: center;
+    margin-bottom: 48px;
+  }
+
+  .logo-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    margin-bottom: 12px;
+  }
+
+  .logo-icon {
+    width: 52px; height: 52px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px;
+    box-shadow: 0 0 30px rgba(0,212,255,0.4);
+  }
+
+  h1 {
+    font-size: 2.2rem;
+    font-weight: 900;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    letter-spacing: -0.5px;
+  }
+
+  .subtitle {
+    color: var(--text-dim);
+    font-size: 0.95rem;
+    margin-top: 6px;
+    font-family: var(--mono);
+  }
+
+  /* Step indicator */
+  .steps {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    margin-bottom: 40px;
+    flex-wrap: wrap;
+  }
+
+  .step {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 24px;
+    font-size: 0.82rem;
+    font-family: var(--mono);
+    color: var(--text-dim);
+    transition: all 0.3s;
+  }
+
+  .step.active {
+    color: var(--accent);
+    background: rgba(0,212,255,0.08);
+  }
+
+  .step.done {
+    color: var(--accent3);
+  }
+
+  .step-num {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    transition: all 0.3s;
+  }
+
+  .step.active .step-num { background: var(--accent); color: var(--bg); }
+  .step.done .step-num { background: var(--accent3); color: var(--bg); }
+
+  .step-arrow { color: var(--border); padding: 0 4px; }
+
+  /* Card */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    margin-bottom: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    opacity: 0.6;
+  }
+
+  .card-title {
+    font-size: 0.85rem;
+    font-family: var(--mono);
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* Form grid */
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .field.full { grid-column: 1 / -1; }
+
+  label {
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+  }
+
+  input[type="text"], input[type="color"], select, textarea {
+    background: #0d1420;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 0.88rem;
+    padding: 10px 14px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    width: 100%;
+  }
+
+  input[type="text"]:focus, select:focus, textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(0,212,255,0.1);
+  }
+
+  textarea { resize: vertical; min-height: 70px; }
+
+  .color-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  input[type="color"] {
+    width: 44px; height: 38px;
+    padding: 3px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  input[type="color"] + input {
+    flex: 1;
+  }
+
+  /* Upload zones */
+  .upload-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 4px;
+  }
+
+  @media (max-width: 600px) { .upload-grid { grid-template-columns: 1fr; } }
+
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 28px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.25s;
+    position: relative;
+  }
+
+  .upload-zone:hover, .upload-zone.drag {
+    border-color: var(--accent);
+    background: rgba(0,212,255,0.04);
+  }
+
+  .upload-zone.loaded {
+    border-color: var(--accent3);
+    border-style: solid;
+    background: rgba(16,185,129,0.05);
+  }
+
+  .upload-zone input[type="file"] {
+    position: absolute; inset: 0;
+    opacity: 0; cursor: pointer;
+    width: 100%; height: 100%;
+  }
+
+  .upload-icon { font-size: 2rem; margin-bottom: 8px; }
+  .upload-label { font-size: 0.85rem; color: var(--text-dim); }
+  .upload-label strong { color: var(--text); display: block; margin-bottom: 3px; font-size: 0.9rem; }
+  .upload-status { font-size: 0.78rem; margin-top: 6px; font-family: var(--mono); }
+  .upload-status.ok { color: var(--accent3); }
+  .upload-status.err { color: var(--danger); }
+
+  /* Options toggles */
+  .toggle-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
+  }
+
+  .toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: #0d1420;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.83rem;
+    transition: all 0.2s;
+    user-select: none;
+  }
+
+  .toggle:hover { border-color: var(--accent); }
+
+  .toggle input { display: none; }
+
+  .toggle-box {
+    width: 18px; height: 18px;
+    border: 2px solid var(--border);
+    border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.2s;
+    font-size: 11px;
+  }
+
+  .toggle input:checked ~ .toggle-box {
+    background: var(--accent); border-color: var(--accent); color: var(--bg);
+  }
+
+  /* Generate button */
+  .btn-pack {
+    width: 100%;
+    padding: 18px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border: none;
+    border-radius: 12px;
+    color: #fff;
+    font-size: 1.05rem;
+    font-weight: 700;
+    font-family: var(--sans);
+    cursor: pointer;
+    letter-spacing: 0.5px;
+    transition: all 0.25s;
+    box-shadow: 0 4px 20px rgba(0,212,255,0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 8px;
+  }
+
+  .btn-pack:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(0,212,255,0.4);
+  }
+
+  .btn-pack:active { transform: translateY(0); }
+  .btn-pack:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  /* Output section */
+  #output-section { display: none; }
+
+  .output-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .file-chip {
+    background: #0d1420;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+  }
+
+  .file-chip:hover { border-color: var(--accent3); background: rgba(16,185,129,0.05); }
+
+  .file-chip-icon { font-size: 1.5rem; }
+  .file-chip-name { font-family: var(--mono); font-size: 0.78rem; color: var(--text); }
+  .file-chip-size { font-family: var(--mono); font-size: 0.68rem; color: var(--text-dim); }
+
+  .chip-btn {
+    font-size: 0.68rem;
+    font-family: var(--mono);
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: rgba(255,255,255,0.05);
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .chip-btn:hover { background: rgba(0,212,255,0.12); color: var(--accent); }
+  .chip-dl:hover { background: rgba(16,185,129,0.12); color: var(--accent3); }
+
+  .file-chip .dl-badge {
+    position: absolute; top: 8px; right: 10px;
+    font-size: 0.65rem;
+    color: var(--accent3);
+    font-family: var(--mono);
+  }
+
+  .btn-row {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    padding: 12px 24px;
+    border-radius: 8px;
+    border: none;
+    font-family: var(--sans);
+    font-weight: 700;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .btn-primary {
+    background: var(--accent3);
+    color: #fff;
+    box-shadow: 0 2px 12px rgba(16,185,129,0.3);
+  }
+
+  .btn-secondary {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+  }
+
+  .btn:hover { transform: translateY(-1px); }
+  .btn-primary:hover { box-shadow: 0 4px 20px rgba(16,185,129,0.5); }
+
+  /* Preview modal */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  .modal-overlay.open { display: flex; }
+
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    width: 100%;
+    max-width: 760px;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .modal-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .modal-title { font-family: var(--mono); font-size: 0.85rem; color: var(--accent); }
+
+  .modal-close {
+    background: none; border: none;
+    color: var(--text-dim); font-size: 1.2rem;
+    cursor: pointer; padding: 4px 8px;
+    border-radius: 4px;
+  }
+
+  .modal-close:hover { color: var(--text); background: var(--border); }
+
+  .modal-body {
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  pre {
+    background: #060a12;
+    padding: 20px;
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    line-height: 1.6;
+    color: #a8c8f0;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 30px; left: 50%;
+    transform: translateX(-50%) translateY(60px);
+    background: var(--accent3);
+    color: #fff;
+    padding: 12px 24px;
+    border-radius: 24px;
+    font-weight: 700;
+    font-size: 0.88rem;
+    transition: transform 0.3s;
+    z-index: 999;
+    pointer-events: none;
+  }
+
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* Tag input */
+  .tag-input-wrap {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    background: #0d1420;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    cursor: text;
+    min-height: 42px;
+    align-items: center;
+  }
+
+  .tag-input-wrap:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,212,255,0.1); }
+
+  .tag {
+    background: rgba(0,212,255,0.12);
+    color: var(--accent);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 0.75rem;
+    font-family: var(--mono);
+    display: flex; align-items: center; gap: 4px;
+  }
+
+  .tag-remove { cursor: pointer; opacity: 0.6; }
+  .tag-remove:hover { opacity: 1; }
+
+  .tag-input-wrap input {
+    background: none; border: none; outline: none;
+    color: var(--text); font-family: var(--mono); font-size: 0.85rem;
+    min-width: 60px; flex: 1;
+    padding: 0;
+  }
+
+  @keyframes bounce-in {
+    0%   { transform: scale(0.85); opacity: 0.5; }
+    60%  { transform: scale(1.08); }
+    100% { transform: scale(1);    opacity: 1; }
+  }
+  .upload-zone.loaded { animation: bounce-in 0.35s ease; }
+
+  /* hint */
+  .hint { font-size: 0.73rem; color: var(--text-dim); margin-top: 4px; font-family: var(--mono); }
+</style>
+
+<!-- PWA Meta — auto-injected by PWA 打包神器 -->
+<meta name="application-name" content="打包神器">
+<meta name="description" content="Github打包上傳">
+<meta name="theme-color" content="#1a73e8">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="打包神器">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.svg">
+<script>if('serviceWorker'in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').then(function(r){console.log('[SW] registered:',r.scope)}).catch(function(e){console.warn('[SW] failed:',e)});});}</script>
+</head>
+<body>
+
+<div class="container">
+
+  <header>
+    <div class="logo-row">
+      <div class="logo-icon">📦</div>
+      <h1>PWA 打包神器</h1>
+    </div>
+    <p class="subtitle">// upload .html + icon.svg → auto-generate PWA package ready for GitHub Pages</p>
+  </header>
+
+  <div class="steps">
+    <div class="step active" id="step1"><span class="step-num">1</span> 上傳檔案</div>
+    <span class="step-arrow">›</span>
+    <div class="step" id="step2"><span class="step-num">2</span> 設定資訊</div>
+    <span class="step-arrow">›</span>
+    <div class="step" id="step3"><span class="step-num">3</span> 打包輸出</div>
+  </div>
+
+  <!-- STEP 1: Upload -->
+  <div class="card">
+    <div class="card-title">⬆ 01 &nbsp;上傳來源檔案</div>
+    <div class="upload-grid">
+      <div class="upload-zone" id="zone-html">
+        <input type="file" accept=".html,.htm" id="file-html">
+        <div class="upload-icon">📄</div>
+        <div class="upload-label">
+          <strong>主程式 HTML</strong>
+          拖曳或點擊上傳<br>(.html / .htm)
+        </div>
+        <div class="upload-status" id="status-html">尚未上傳</div>
+      </div>
+
+      <div class="upload-zone" id="zone-svg">
+        <input type="file" accept=".svg,image/svg+xml" id="file-svg">
+        <div class="upload-icon">🎨</div>
+        <div class="upload-label">
+          <strong>App 圖示 SVG</strong>
+          拖曳或點擊上傳<br>(.svg)
+        </div>
+        <div class="upload-status" id="status-svg">尚未上傳</div>
+      </div>
+    </div>
+    <p class="hint" style="margin-top:12px">💡 如未上傳 icon.svg，將使用預設佔位圖示</p>
+  </div>
+
+  <!-- STEP 2: Config -->
+  <div class="card">
+    <div class="card-title">⚙ 02 &nbsp;PWA 設定資訊</div>
+    <div class="form-grid">
+
+      <div class="field">
+        <label>App 名稱（name）</label>
+        <input type="text" id="cfg-name" value="My PWA App" placeholder="My PWA App">
+      </div>
+
+      <div class="field">
+        <label>短名稱（short_name）</label>
+        <input type="text" id="cfg-short" value="MyApp" placeholder="MyApp">
+      </div>
+
+      <div class="field full">
+        <label>描述（description）</label>
+        <textarea id="cfg-desc" rows="2" placeholder="簡短描述這個 App 的功能…"></textarea>
+      </div>
+
+      <div class="field">
+        <label>主題色（theme_color）</label>
+        <div class="color-row">
+          <input type="color" id="cfg-theme-picker" value="#1a73e8">
+          <input type="text" id="cfg-theme" value="#1a73e8" placeholder="#1a73e8" maxlength="9">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>背景色（background_color）</label>
+        <div class="color-row">
+          <input type="color" id="cfg-bg-picker" value="#ffffff">
+          <input type="text" id="cfg-bg" value="#ffffff" placeholder="#ffffff" maxlength="9">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>顯示模式（display）</label>
+        <select id="cfg-display">
+          <option value="standalone" selected>standalone（全螢幕 App）</option>
+          <option value="fullscreen">fullscreen（完整全螢幕）</option>
+          <option value="minimal-ui">minimal-ui（最小 UI）</option>
+          <option value="browser">browser（一般瀏覽器）</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>方向（orientation）</label>
+        <select id="cfg-orient">
+          <option value="any" selected>any（自動）</option>
+          <option value="portrait">portrait（直向）</option>
+          <option value="landscape">landscape（橫向）</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>語言（lang）</label>
+        <input type="text" id="cfg-lang" value="zh-TW" placeholder="zh-TW">
+      </div>
+
+      <div class="field">
+        <label>GitHub Pages 路徑（start_url / scope）</label>
+        <input type="text" id="cfg-scope" value="/" placeholder="/ 或 /repo-name/">
+      </div>
+
+      <div class="field full">
+        <label>Cache 路由（Service Worker 預快取路徑，空白用自動）</label>
+        <div class="tag-input-wrap" id="cache-tags-wrap">
+          <input id="cache-tag-input" placeholder="輸入路徑後按 Enter，例如：./index.html">
+        </div>
+        <p class="hint">留空則自動快取：index.html, sw.js, manifest.json, icon.svg</p>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- STEP 3: Options -->
+  <div class="card">
+    <div class="card-title">🔧 03 &nbsp;進階選項</div>
+    <div class="toggle-grid">
+      <label class="toggle">
+        <input type="checkbox" id="opt-inline-icon" checked>
+        <span class="toggle-box">✓</span>
+        inline icon（Base64 嵌入 manifest）
+      </label>
+      <label class="toggle">
+        <input type="checkbox" id="opt-offline" checked>
+        <span class="toggle-box">✓</span>
+        離線頁面（offline.html）
+      </label>
+      <label class="toggle">
+        <input type="checkbox" id="opt-readme" checked>
+        <span class="toggle-box">✓</span>
+        生成 README.md
+      </label>
+      <label class="toggle">
+        <input type="checkbox" id="opt-gitignore">
+        <span class="toggle-box">✓</span>
+        生成 .gitignore
+      </label>
+      <label class="toggle">
+        <input type="checkbox" id="opt-nojekyll" checked>
+        <span class="toggle-box">✓</span>
+        .nojekyll（GitHub Pages 用）
+      </label>
+      <label class="toggle">
+        <input type="checkbox" id="opt-inject-meta" checked>
+        <span class="toggle-box">✓</span>
+        自動注入 PWA meta 標籤
+      </label>
+    </div>
+  </div>
+
+  <button class="btn-pack" id="btn-pack" onclick="packPWA()">
+    <span>🚀</span> 生成 PWA 打包檔案
+  </button>
+
+  <!-- OUTPUT -->
+  <div id="output-section">
+    <div class="card" style="margin-top:28px">
+      <div class="card-title">✅ 04 &nbsp;打包完成 — 點擊預覽 / 下載</div>
+      <div class="output-grid" id="output-grid"></div>
+
+      <!-- Validation report -->
+      <div id="validate-report" style="margin-bottom:16px;display:none">
+        <div style="font-size:0.78rem;font-family:var(--mono);color:var(--text-dim);
+                    margin-bottom:8px;text-transform:uppercase;letter-spacing:1px">
+          🔍 結構驗證報告
+        </div>
+        <div id="validate-items" style="display:flex;flex-direction:column;gap:6px"></div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="downloadAll()" id="btn-dl-all">⬇ 全部下載 / 開啟部署包</button>
+        <button class="btn" style="background:#7c3aed;color:#fff" onclick="openSandbox()">🪟 沙箱預覽對比</button>
+        <button class="btn" style="background:#24292e;color:#fff;border:1px solid #444"
+          onclick="openGitHubPanel()">🐙 上傳到 GitHub</button>
+        <button class="btn btn-secondary" onclick="scrollTop()">↑ 重新設定</button>
+      </div>
+    </div>
+
+    <!-- GitHub Upload Panel -->
+    <div id="gh-panel" style="display:none">
+    <div class="card" style="margin-top:16px;border-color:rgba(36,41,46,0.8);
+         background:linear-gradient(135deg,#0d1117,#161b22)">
+      <div class="card-title" style="color:#58a6ff">🐙 05 &nbsp;直接上傳到 GitHub</div>
+
+      <div class="form-grid">
+        <div class="field">
+          <label>GitHub Username</label>
+          <input type="text" id="gh-user" placeholder="kftseng2oo1" autocapitalize="none">
+        </div>
+        <div class="field">
+          <label>Repository 名稱</label>
+          <input type="text" id="gh-repo" placeholder="my-pwa-app" autocapitalize="none">
+        </div>
+        <div class="field full">
+          <label>Personal Access Token（需有 repo 權限）</label>
+          <input type="password" id="gh-token" placeholder="ghp_xxxxxxxxxxxx" autocapitalize="none"
+            autocomplete="off">
+          <p class="hint">⚠ Token 僅存在記憶體，不會儲存。
+            <a href="https://github.com/settings/tokens/new?scopes=repo" target="_blank"
+               style="color:#58a6ff">點此申請 Token →</a>
+          </p>
+        </div>
+        <div class="field">
+          <label>Branch</label>
+          <input type="text" id="gh-branch" value="main" placeholder="main" autocapitalize="none">
+        </div>
+        <div class="field">
+          <label>Commit 訊息</label>
+          <input type="text" id="gh-msg" value="deploy: PWA packer upload" placeholder="commit message">
+        </div>
+      </div>
+
+      <!-- Progress -->
+      <div id="gh-progress" style="display:none;margin-top:16px">
+        <div style="font-size:0.75rem;font-family:var(--mono);color:#58a6ff;margin-bottom:8px"
+             id="gh-progress-label">準備上傳…</div>
+        <div style="background:#0d1117;border-radius:6px;height:6px;overflow:hidden">
+          <div id="gh-progress-bar"
+            style="height:100%;background:linear-gradient(90deg,#58a6ff,#3fb950);
+                   width:0%;transition:width 0.3s;border-radius:6px"></div>
+        </div>
+        <div id="gh-file-list"
+          style="margin-top:10px;font-size:0.7rem;font-family:var(--mono);
+                 color:#8b949e;display:flex;flex-direction:column;gap:3px"></div>
+      </div>
+
+      <button id="gh-upload-btn"
+        style="width:100%;margin-top:16px;padding:16px;
+               background:linear-gradient(135deg,#238636,#2ea043);
+               border:none;border-radius:10px;color:#fff;font-size:1rem;
+               font-weight:700;cursor:pointer;display:flex;align-items:center;
+               justify-content:center;gap:8px;font-family:var(--sans);
+               box-shadow:0 4px 16px rgba(46,160,67,0.3)"
+        onclick="uploadToGitHub()">
+        🚀 一鍵上傳所有檔案
+      </button>
+
+      <div id="gh-result" style="display:none;margin-top:12px;padding:14px;
+           border-radius:8px;font-size:0.82rem;font-family:var(--mono)"></div>
+    </div>
+    </div>
+
+
+    <!-- Sandbox overlay — Swipe 左右滑動式 -->
+    <div id="sandbox-overlay" style="display:none;position:fixed;inset:0;z-index:200;
+         background:#0a0e1a;flex-direction:column;">
+
+      <!-- Header -->
+      <div style="display:flex;align-items:center;justify-content:space-between;
+                  padding:10px 14px;border-bottom:1px solid #1e2d45;flex-shrink:0;gap:8px">
+        <div style="font-size:0.8rem;font-family:var(--mono);color:var(--accent);white-space:nowrap">
+          🪟 沙箱對比
+        </div>
+        <!-- Dot indicator -->
+        <div style="display:flex;gap:6px;align-items:center;flex:1;justify-content:center">
+          <span id="dot-orig"
+            style="width:8px;height:8px;border-radius:50%;background:var(--accent);
+                   transition:all 0.25s;display:inline-block"></span>
+          <span id="dot-packed"
+            style="width:8px;height:8px;border-radius:50%;background:var(--border);
+                   transition:all 0.25s;display:inline-block"></span>
+        </div>
+        <button onclick="closeSandbox()"
+          style="background:#1e2d45;color:#e2e8f0;border:none;border-radius:6px;
+                 padding:6px 12px;cursor:pointer;font-size:0.8rem;flex-shrink:0">✕</button>
+      </div>
+
+      <!-- Label bar -->
+      <div id="sandbox-label"
+        style="padding:5px 14px;font-size:0.7rem;font-family:var(--mono);
+               color:var(--accent);background:#111827;border-bottom:1px solid #1e2d45;
+               flex-shrink:0;display:flex;align-items:center;gap:6px">
+        <span>◀ 滑動切換 ▶</span>
+        <span id="sandbox-label-text">原始 HTML</span>
+      </div>
+
+      <!-- Swipe container -->
+      <div id="swipe-track"
+        style="flex:1;display:flex;width:200%;transition:transform 0.3s cubic-bezier(.4,0,.2,1);
+               will-change:transform;touch-action:pan-y;position:relative">
+        <!-- Pane 0: 原始 -->
+        <div style="width:50%;flex-shrink:0;position:relative;overflow:hidden">
+          <iframe id="iframe-orig" sandbox="allow-scripts allow-same-origin"
+            style="position:absolute;inset:0;width:100%;height:100%;border:none;background:#fff"></iframe>
+        </div>
+        <!-- Pane 1: 打包後 -->
+        <div style="width:50%;flex-shrink:0;position:relative;overflow:hidden">
+          <iframe id="iframe-packed" sandbox="allow-scripts allow-same-origin"
+            style="position:absolute;inset:0;width:100%;height:100%;border:none;background:#fff"></iframe>
+        </div>
+        <!-- Transparent swipe capture overlay — covers iframes during gesture detection -->
+        <div id="swipe-cap" style="position:absolute;inset:0;z-index:10;touch-action:pan-y"></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px; border-color: rgba(124,58,237,0.3);">
+      <div class="card-title" style="color: var(--accent2)">📋 GitHub 部署步驟</div>
+      <div style="font-size:0.85rem; line-height:1.9; font-family: var(--mono); color: var(--text-dim);">
+        <span style="color:var(--accent3)">①</span> 下載所有檔案，放入同一個資料夾<br>
+        <span style="color:var(--accent3)">②</span> 在 GitHub 建立新的 repository<br>
+        <span style="color:var(--accent3)">③</span> <span style="color:#e2e8f0">git init → git add . → git commit -m "init PWA"</span><br>
+        <span style="color:var(--accent3)">④</span> <span style="color:#e2e8f0">git push origin main</span><br>
+        <span style="color:var(--accent3)">⑤</span> GitHub repo → Settings → Pages → Deploy from <span style="color:#e2e8f0">main</span> 分支<br>
+        <span style="color:var(--accent3)">⑥</span> 等待幾分鐘後訪問 <span style="color:var(--accent)">https://&lt;username&gt;.github.io/&lt;repo&gt;/</span><br>
+        <span style="color:var(--accent3)">⑦</span> 瀏覽器出現「安裝 App」提示 → 安裝到主畫面 ✓
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Preview Modal -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-title">preview</span>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button id="modal-dl-btn" class="btn btn-primary" style="padding:6px 14px;font-size:0.78rem">⬇ 下載</button>
+        <button class="modal-close" onclick="closeModal()">✕</button>
+      </div>
+    </div>
+    <div class="modal-body">
+      <pre id="modal-content"></pre>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── State ──────────────────────────────────────────────
+let htmlContent = '';
+let svgContent  = '';
+let generatedFiles = {};
+let cacheTags = [];
+
+// ─── Color pickers sync ──────────────────────────────────
+document.getElementById('cfg-theme-picker').addEventListener('input', e => {
+  document.getElementById('cfg-theme').value = e.target.value;
+});
+document.getElementById('cfg-theme').addEventListener('input', e => {
+  if (/^#[0-9a-fA-F]{6}$/.test(e.target.value))
+    document.getElementById('cfg-theme-picker').value = e.target.value;
+});
+document.getElementById('cfg-bg-picker').addEventListener('input', e => {
+  document.getElementById('cfg-bg').value = e.target.value;
+});
+document.getElementById('cfg-bg').addEventListener('input', e => {
+  if (/^#[0-9a-fA-F]{6}$/.test(e.target.value))
+    document.getElementById('cfg-bg-picker').value = e.target.value;
+});
+
+// ─── Tag input ───────────────────────────────────────────
+const tagInput = document.getElementById('cache-tag-input');
+tagInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter' || e.key === ',') {
+    e.preventDefault();
+    const v = tagInput.value.trim();
+    if (v && !cacheTags.includes(v)) {
+      cacheTags.push(v);
+      renderTags();
+    }
+    tagInput.value = '';
+  }
+});
+
+function renderTags() {
+  const wrap = document.getElementById('cache-tags-wrap');
+  wrap.querySelectorAll('.tag').forEach(t => t.remove());
+  cacheTags.forEach((tag, i) => {
+    const el = document.createElement('span');
+    el.className = 'tag';
+    el.innerHTML = `${tag} <span class="tag-remove" onclick="removeTag(${i})">×</span>`;
+    wrap.insertBefore(el, tagInput);
+  });
+}
+
+function removeTag(i) {
+  cacheTags.splice(i, 1);
+  renderTags();
+}
+
+// ─── File upload ─────────────────────────────────────────
+function setupUpload(inputId, zoneId, statusId, type) {
+  const input = document.getElementById(inputId);
+  const zone  = document.getElementById(zoneId);
+  const status = document.getElementById(statusId);
+
+  input.addEventListener('change', e => handleFile(e.target.files[0], type, zone, status));
+
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('drag');
+    handleFile(e.dataTransfer.files[0], type, zone, status);
+  });
+}
+
+function handleFile(file, type, zone, status) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const content = e.target.result;
+    if (type === 'html') {
+      htmlContent = content;
+      status.textContent = `✓ ${file.name} (${formatSize(file.size)})`;
+    } else {
+      svgContent = content;
+      status.textContent = `✓ ${file.name} (${formatSize(file.size)})`;
+    }
+    status.className = 'upload-status ok';
+    zone.classList.add('loaded');
+    updateStepIndicator();
+  };
+  reader.readAsText(file);
+}
+
+setupUpload('file-html', 'zone-html', 'status-html', 'html');
+setupUpload('file-svg',  'zone-svg',  'status-svg',  'svg');
+
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + 'B';
+  if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + 'KB';
+  return (bytes/1024/1024).toFixed(1) + 'MB';
+}
+
+function updateStepIndicator() {
+  const s1 = document.getElementById('step1');
+  const s2 = document.getElementById('step2');
+  if (htmlContent) {
+    s1.classList.add('done');
+    s2.classList.add('active');
+  }
+}
+
+// ─── SVG → PNG (Canvas) multi-size ───────────────────────
+function svgToPngBase64(svgStr, size) {
+  return new Promise((resolve, reject) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+
+    img.onload = () => {
+      try {
+        ctx.drawImage(img, 0, 0, size, size);
+        resolve(canvas.toDataURL('image/png').split(',')[1]);
+      } catch(e) { reject(e); }
+    };
+    img.onerror = reject;
+
+    // Use data URI instead of Blob URL — works in iOS WebView
+    const b64svg = btoa(unescape(encodeURIComponent(svgStr)));
+    img.src = 'data:image/svg+xml;base64,' + b64svg;
+  });
+}
+
+// ─── Core: Generate files ─────────────────────────────────
+async function packPWA() {
+  if (!htmlContent) {
+    showToast('⚠ 請先上傳 HTML 檔案！', '#f59e0b');
+    return;
+  }
+
+  // Scope validation
+  const scopeRaw = document.getElementById('cfg-scope').value.trim() || '/';
+  const scope = scopeRaw.endsWith('/') ? scopeRaw : scopeRaw + '/';
+  if (scope !== scopeRaw) {
+    showToast('💡 scope 已自動補上結尾 /', '#f59e0b');
+    document.getElementById('cfg-scope').value = scope;
+  }
+  if (scope !== '/' && !scope.startsWith('/')) {
+    showToast('⚠ scope 必須以 / 開頭，例如 /my-repo/', '#ef4444');
+    return;
+  }
+
+  const cfg = {
+    name:    document.getElementById('cfg-name').value || 'My PWA',
+    short:   document.getElementById('cfg-short').value || 'App',
+    desc:    document.getElementById('cfg-desc').value || '',
+    theme:   document.getElementById('cfg-theme').value || '#1a73e8',
+    bg:      document.getElementById('cfg-bg').value || '#ffffff',
+    display: document.getElementById('cfg-display').value,
+    orient:  document.getElementById('cfg-orient').value,
+    lang:    document.getElementById('cfg-lang').value || 'zh-TW',
+    scope,
+  };
+
+  const opts = {
+    inlineIcon: document.getElementById('opt-inline-icon').checked,
+    offline:    document.getElementById('opt-offline').checked,
+    readme:     document.getElementById('opt-readme').checked,
+    gitignore:  document.getElementById('opt-gitignore').checked,
+    nojekyll:   document.getElementById('opt-nojekyll').checked,
+    injectMeta: document.getElementById('opt-inject-meta').checked,
+  };
+
+  const btn = document.getElementById('btn-pack');
+  btn.disabled = true;
+  btn.innerHTML = '<span>⏳</span> 生成中（轉換圖示）…';
+
+  const userCacheUrls = cacheTags.length > 0 ? cacheTags : [
+    cfg.scope + 'index.html',
+    cfg.scope + 'sw.js',
+    cfg.scope + 'manifest.json',
+    cfg.scope + 'icon.svg',
+  ];
+  if (opts.offline) userCacheUrls.push(cfg.scope + 'offline.html');
+
+  generatedFiles = {};
+
+  // ── 1. SVG → PNG icons (Canvas) ───────────────────────
+  const svgSrc = svgContent || generateDefaultSVG(cfg);
+  let iconEntries = [
+    { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
+    { src: 'icon-maskable.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' },
+  ];
+
+  try {
+    const [png192, png512] = await Promise.all([
+      svgToPngBase64(svgSrc, 192),
+      svgToPngBase64(svgSrc, 512),
+    ]);
+    generatedFiles['icon-192.png'] = png192; // stored as base64, note below
+    generatedFiles['icon-512.png'] = png512;
+    iconEntries = [
+      { src: 'icon.svg',       sizes: 'any',     type: 'image/svg+xml', purpose: 'any' },
+      { src: 'icon-maskable.svg', sizes: 'any',  type: 'image/svg+xml', purpose: 'maskable' },
+      { src: 'icon-192.png',   sizes: '192x192', type: 'image/png',     purpose: 'any' },
+      { src: 'icon-512.png',   sizes: '512x512', type: 'image/png',     purpose: 'maskable' },
+    ];
+    userCacheUrls.push(cfg.scope + 'icon-192.png', cfg.scope + 'icon-512.png');
+  } catch(e) {
+    console.warn('[packer] PNG conversion failed, SVG-only icons');
+  }
+
+  // ── 2. manifest.json (with categories + shortcuts) ────
+  const manifest = {
+    name:             cfg.name,
+    short_name:       cfg.short,
+    description:      cfg.desc,
+    start_url:        cfg.scope,
+    scope:            cfg.scope,
+    display:          cfg.display,
+    orientation:      cfg.orient,
+    theme_color:      cfg.theme,
+    background_color: cfg.bg,
+    lang:             cfg.lang,
+    categories:       ['utilities'],
+    shortcuts: [
+      {
+        name:      '開啟 ' + cfg.short,
+        short_name: cfg.short,
+        url:       cfg.scope,
+        icons:     [{ src: 'icon-192.png', sizes: '192x192' }],
+      }
+    ],
+    icons: iconEntries,
+  };
+  generatedFiles['manifest.json'] = JSON.stringify(manifest, null, 2);
+
+  // ── 3. sw.js ──────────────────────────────────────────
+  const cacheKey = `${cfg.short.replace(/\s/g,'-').toLowerCase()}-v1`;
+  generatedFiles['sw.js'] = generateSW(cacheKey, userCacheUrls, opts.offline, cfg.scope);
+
+  // ── 4. index.html ─────────────────────────────────────
+  generatedFiles['index.html'] = generateIndexHTML(htmlContent, cfg, opts);
+
+  // ── 5. icon.svg + maskable variant ───────────────────
+  generatedFiles['icon.svg'] = svgSrc;
+  generatedFiles['icon-maskable.svg'] = generateMaskableSVG(svgSrc, cfg);
+
+  // ── 6. offline.html ───────────────────────────────────
+  if (opts.offline) {
+    generatedFiles['offline.html'] = generateOfflinePage(cfg);
+  }
+
+  // ── 7. README.md ──────────────────────────────────────
+  if (opts.readme) {
+    generatedFiles['README.md'] = generateReadme(cfg, Object.keys(generatedFiles));
+  }
+
+  // ── 8. .gitignore ─────────────────────────────────────
+  if (opts.gitignore) {
+    generatedFiles['.gitignore'] = `.DS_Store\nThumbs.db\n*.log\nnode_modules/\n.env\n`;
+  }
+
+  // ── 9. .nojekyll ──────────────────────────────────────
+  if (opts.nojekyll) {
+    generatedFiles['.nojekyll'] = '';
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '<span>🚀</span> 生成 PWA 打包檔案';
+
+  renderOutput();
+  document.getElementById('step3').classList.add('active');
+  showToast('✓ 打包完成！共生成 ' + Object.keys(generatedFiles).length + ' 個檔案');
+}
+
+// ─── Generate SW ─────────────────────────────────────────
+function generateSW(cacheKey, urls, hasOffline, scope) {
+  const urlList = JSON.stringify(urls, null, 4);
+  return `// Service Worker — auto-generated by PWA 打包神器
+// Cache key: ${cacheKey}
+// Strategy: Stale-While-Revalidate (HTML) + Cache-First (assets)
+
+const CACHE_NAME = '${cacheKey}';
+const PRECACHE_URLS = ${urlList};
+
+// Install: pre-cache assets
+self.addEventListener('install', event => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then(cache => {
+      return cache.addAll(PRECACHE_URLS).catch(err => {
+        console.warn('[SW] Pre-cache partial failure:', err);
+      });
+    }).then(() => self.skipWaiting())
+  );
+});
+
+// Activate: clean old caches
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    caches.keys().then(keys =>
+      Promise.all(
+        keys.filter(k => k !== CACHE_NAME)
+            .map(k => caches.delete(k))
+      )
+    ).then(() => self.clients.claim())
+  );
+});
+
+// Fetch strategy:
+//   HTML documents → Stale-While-Revalidate（先給舊的，背景更新）
+//   其他資源      → Cache-First（快取優先，離線可用）
+self.addEventListener('fetch', event => {
+  if (event.request.method !== 'GET') return;
+  const url = new URL(event.request.url);
+  if (url.protocol === 'chrome-extension:') return;
+
+  const isDocument = event.request.destination === 'document' ||
+                     event.request.headers.get('accept')?.includes('text/html');
+
+  if (isDocument) {
+    // Stale-While-Revalidate for HTML
+    event.respondWith(
+      caches.open(CACHE_NAME).then(cache =>
+        cache.match(event.request).then(cached => {
+          const fetchPromise = fetch(event.request).then(response => {
+            if (response && response.status === 200) {
+              cache.put(event.request, response.clone());
+            }
+            return response;
+          }).catch(() => null);
+
+          return cached || fetchPromise || ${hasOffline ? `caches.match('${scope}offline.html')` : 'Promise.resolve(new Response("Offline", {status: 503}))'};
+        })
+      )
+    );
+  } else {
+    // Cache-First for assets
+    event.respondWith(
+      caches.match(event.request).then(cached => {
+        if (cached) return cached;
+        return fetch(event.request).then(response => {
+          if (!response || response.status !== 200 || response.type === 'opaque') {
+            return response;
+          }
+          const cloned = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, cloned));
+          return response;
+        }).catch(() => {
+          ${hasOffline ? `if (event.request.destination === 'document') {
+            return caches.match('${scope}offline.html');
+          }` : '// offline — no asset fallback'}
+        });
+      })
+    );
+  }
+});
+`;
+}
+
+// ─── Inject PWA meta into HTML (string-based, safe for complex HTML) ──
+function generateIndexHTML(raw, cfg, opts) {
+  if (!opts.injectMeta) return raw;
+
+  let html = raw;
+
+  // ── Step 1: Remove existing duplicates via regex (safe, no DOM parse) ──
+  const removeTags = [
+    /<link[^>]+rel=["']manifest["'][^>]*>/gi,
+    /<link[^>]+rel=["']apple-touch-icon["'][^>]*>/gi,
+    /<meta[^>]+name=["']theme-color["'][^>]*>/gi,
+    /<meta[^>]+name=["']application-name["'][^>]*>/gi,
+    /<meta[^>]+name=["']mobile-web-app-capable["'][^>]*>/gi,
+    /<meta[^>]+name=["']apple-mobile-web-app-capable["'][^>]*>/gi,
+    /<meta[^>]+name=["']apple-mobile-web-app-status-bar-style["'][^>]*>/gi,
+    /<meta[^>]+name=["']apple-mobile-web-app-title["'][^>]*>/gi,
+  ];
+  removeTags.forEach(re => { html = html.replace(re, ''); });
+
+  // Remove existing SW register script blocks
+  // Strategy: parse script tags individually; only remove SW registration blocks
+  // (must have serviceWorker + sw.js reference + be short < 2000 chars)
+  html = html.replace(/(<script[^>]*>)([\s\S]*?)(<\/script>)/gi, function(match, open, body, close) {
+    const hasSW  = body.indexOf('serviceWorker') !== -1;
+    const hasSWjs = body.indexOf("'sw.js'") !== -1 || body.indexOf('"sw.js"') !== -1;
+    const isShort = body.length < 2000; // registration scripts are tiny
+    if (hasSW && hasSWjs && isShort) return '';
+    return match;
+  });
+
+  // ── Step 2: Build injection block ──
+  // IMPORTANT: split '</scr'+'ipt>' to prevent HTML parser from truncating pwa-packer's own script
+  const SC = '<scr'+'ipt>';
+  const SCE = '</'+'script>';
+  const swCode = "if('serviceWorker'in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').then(function(r){console.log('[SW] registered:',r.scope)}).catch(function(e){console.warn('[SW] failed:',e)});});}";
+  const swBlock = SC + swCode + SCE;
+
+  const inject = `
+<!-- PWA Meta — auto-injected by PWA 打包神器 -->
+
+<meta name="description" content="${esc(cfg.desc)}">
+
+
+
+
+
+
+
+${swBlock}`;
+
+  // ── Step 3: Insert before </head> ──
+  if (html.includes('</head>')) {
+    html = html.replace('</head>', inject + '\n</head>');
+  } else if (/<body[\s>]/i.test(html)) {
+    html = html.replace(/<body[\s>]/i, inject + '\n$&');
+  } else {
+    html = inject + '\n' + html;
+  }
+
+  return html;
+}
+
+function esc(s) { return (s||'').replace(/"/g, '&quot;'); }
+
+// ─── Offline page ─────────────────────────────────────────
+function generateOfflinePage(cfg) {
+  return `<!DOCTYPE html>
+<html lang="${cfg.lang}">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>離線中 — ${cfg.name}</title>
+<style>
+  body { margin:0; display:flex; align-items:center; justify-content:center; min-height:100vh;
+         font-family: system-ui, sans-serif; background: #0f172a; color: #94a3b8; text-align:center; }
+  .box { padding: 40px; }
+  .icon { font-size: 4rem; margin-bottom: 16px; }
+  h1 { color: #e2e8f0; margin: 0 0 8px; font-size: 1.5rem; }
+  p { margin: 0; font-size: 0.95rem; }
+  button { margin-top: 24px; padding: 12px 28px; background: ${cfg.theme};
+           color: #fff; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; }
+</style>
+</head>
+<body>
+<div class="box">
+  <div class="icon">📡</div>
+  <h1>目前離線</h1>
+  <p>請檢查網路連線後再試</p>
+  <button onclick="location.reload()">重新整理</button>
+</div>
+</body>
+</html>`;
+}
+
+// ─── Maskable SVG (safe zone padding) ────────────────────
+function generateMaskableSVG(svgSrc, cfg) {
+  // Wrap original SVG in a padded coloured background (safe zone = 80% of canvas)
+  const bg = cfg.theme || '#1a73e8';
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="${bg}"/>
+  <image href="data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svgSrc)))}"
+         x="51" y="51" width="410" height="410"/>
+</svg>`;
+}
+
+
+function generateDefaultSVG(cfg) {
+  const c = cfg.theme || '#1a73e8';
+  const letter = (cfg.short || cfg.name || 'A')[0].toUpperCase();
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="${c}"/>
+  <text x="256" y="340" text-anchor="middle" font-size="280" font-family="system-ui,sans-serif"
+        font-weight="bold" fill="white">${letter}</text>
+</svg>`;
+}
+
+// ─── README ───────────────────────────────────────────────
+function generateReadme(cfg, files) {
+  const fileList = files.map(f => `- \`${f}\``).join('\n');
+  return `# ${cfg.name}
+
+> ${cfg.desc || '一個 Progressive Web App'}
+
+## 📦 包含檔案
+
+${fileList}
+
+## 🚀 部署到 GitHub Pages
+
+\`\`\`bash
+git init
+git add .
+git commit -m "init: ${cfg.name} PWA"
+git branch -M main
+git remote add origin https://github.com/<username>/<repo>.git
+git push -u origin main
+\`\`\`
+
+然後在 GitHub repo → **Settings → Pages** → Source 選 \`main\` 分支，等待幾分鐘後即可訪問。
+
+## 📱 安裝 PWA
+
+在支援的瀏覽器（Chrome / Edge / Safari iOS）中打開網頁，  
+點擊「**安裝**」或「**加入主畫面**」即可將此 App 安裝到裝置。
+
+## ⚙ 技術規格
+
+| 項目 | 值 |
+|------|-----|
+| display | ${cfg.display} |
+| theme_color | ${cfg.theme} |
+| lang | ${cfg.lang} |
+| scope | ${cfg.scope} |
+
+---
+*由 [PWA 打包神器](https://github.com) 自動生成*
+`;
+}
+
+// ─── Validation ───────────────────────────────────────────
+function validatePack(original, packed) {
+  const checks = [];
+
+  function countTag(html, tag) {
+    return (html.match(new RegExp('<' + tag + '[\\s>]', 'gi')) || []).length;
+  }
+
+  // 1. Script tag count
+  const origScripts  = countTag(original, 'script');
+  const packedScripts = countTag(packed, 'script');
+  const expectedExtra = 1; // SW registration script
+  const scriptDiff = packedScripts - origScripts;
+  checks.push({
+    ok: scriptDiff >= 0 && scriptDiff <= expectedExtra + 1,
+    label: 'script 標籤數量',
+    detail: '原始 ' + origScripts + ' 個 → 打包後 ' + packedScripts + ' 個'
+              + (scriptDiff < 0 ? ' ⚠ 少了 ' + Math.abs(scriptDiff) + ' 個！' : '')
+  });
+
+  // 2. Body tag present
+  checks.push({
+    ok: /<\/body>/i.test(packed),
+    label: '</body> 標籤完整',
+    detail: /<\/body>/i.test(packed) ? '存在' : '❌ 遺失，HTML 結構可能被截斷'
+  });
+
+  // 3. Size sanity
+  const ratio = packed.length / original.length;
+  const hadSW = original.indexOf('serviceWorker') !== -1;
+  // If original had SW code, packed may be slightly smaller (SW block removed + new one added)
+  // Allow down to 85% if original had SW; otherwise must be >= 100%
+  const minRatio = hadSW ? 0.85 : 1.0;
+  const sizeOk = ratio >= minRatio && ratio < 2.0;
+  checks.push({
+    ok: sizeOk,
+    label: '檔案大小合理',
+    detail: '原始 ' + formatSize(original.length) + ' → 打包 ' + formatSize(packed.length)
+              + ' (' + (ratio * 100).toFixed(0) + '%)'
+              + (!sizeOk && ratio < minRatio ? ' ❌ 縮水過多，內容可能遺失' : '')
+              + (!sizeOk && ratio >= 2.0 ? ' ⚠ 異常膨脹' : '')
+              + (sizeOk && hadSW ? '（含去重 SW 程式碼）' : '')
+  });
+
+  // 4. manifest link injected
+  checks.push({
+    ok: /rel=["']manifest["']/.test(packed),
+    label: 'manifest.json 連結注入',
+    detail: /rel=["']manifest["']/.test(packed) ? '✓ 已注入' : '❌ 未找到'
+  });
+
+  // 5. SW register code present
+  checks.push({
+    ok: packed.indexOf('serviceWorker') !== -1,
+    label: 'Service Worker 註冊碼',
+    detail: packed.indexOf('serviceWorker') !== -1 ? '✓ 已注入' : '❌ 未找到'
+  });
+
+  // 6. Pre-existing SW check (warn if original already had SW)
+  if (original.indexOf('serviceWorker') !== -1) {
+    checks.push({
+      ok: null, // warning, not error
+      label: '原始檔已有 SW 程式碼',
+      detail: '⚠ 原始 HTML 本身含有 serviceWorker，已自動去重，請確認功能正常'
+    });
+  }
+
+  // 7. Content integrity: count non-empty script blocks in original vs packed
+  function countNonEmptyScripts(html) {
+    let count = 0;
+    html.replace(/(<script[^>]*>)([\s\S]*?)(<\/script>)/gi, function(m, o, body) {
+      if (body.trim().length > 10) count++;
+      return m;
+    });
+    return count;
+  }
+  const origNE  = countNonEmptyScripts(original);
+  const packNE  = countNonEmptyScripts(packed);
+  const lost    = origNE - packNE;
+  checks.push({
+    ok: lost <= 0, // packed should have same or more non-empty scripts
+    label: '有效 script 區塊完整性',
+    detail: lost > 0
+      ? '❌ 原始有 ' + origNE + ' 個有效 script，打包後剩 ' + packNE + ' 個，遺失 ' + lost + ' 個！'
+      : '✓ 原始 ' + origNE + ' 個 → 打包後 ' + packNE + ' 個（含新增 SW 註冊）'
+  });
+
+  return checks;
+}
+
+function renderValidation(checks) {
+  const report = document.getElementById('validate-report');
+  const items  = document.getElementById('validate-items');
+  items.innerHTML = '';
+  checks.forEach(c => {
+    const color = c.ok === null ? '#f59e0b' : c.ok ? '#10b981' : '#ef4444';
+    const icon  = c.ok === null ? '⚠' : c.ok ? '✓' : '✕';
+    const div = document.createElement('div');
+    div.style.cssText = 'display:flex;gap:10px;align-items:flex-start;padding:8px 12px;' +
+      'background:#0d1420;border-radius:6px;border-left:3px solid ' + color;
+    div.innerHTML =
+      '<span style="color:' + color + ';font-weight:700;font-family:var(--mono);flex-shrink:0">' + icon + '</span>' +
+      '<div><div style="font-size:0.8rem;color:#e2e8f0;font-family:var(--mono)">' + c.label + '</div>' +
+      '<div style="font-size:0.72rem;color:#64748b;margin-top:2px">' + c.detail + '</div></div>';
+    items.appendChild(div);
+  });
+  report.style.display = 'block';
+}
+
+// ─── Sandbox preview — Swipe 式 ──────────────────────────
+let sandboxPage = 0; // 0=orig, 1=packed
+let swipeStartX = 0, swipeStartY = 0, swiping = false;
+
+const LABELS = ['原始 HTML（未注入 PWA）', '打包後 index.html（含 PWA meta + SW）'];
+const LABEL_COLORS = ['var(--accent)', 'var(--accent3)'];
+
+function sandboxGoTo(page) {
+  sandboxPage = page;
+  const track = document.getElementById('swipe-track');
+  // track is 200% wide; each pane is 50% of track = 100vw
+  track.style.transform = page === 0 ? 'translateX(0)' : 'translateX(-50%)';
+
+  document.getElementById('dot-orig').style.background   = page === 0 ? 'var(--accent)' : 'var(--border)';
+  document.getElementById('dot-packed').style.background = page === 1 ? 'var(--accent3)' : 'var(--border)';
+  document.getElementById('sandbox-label-text').textContent = LABELS[page];
+  document.getElementById('sandbox-label').style.color = LABEL_COLORS[page];
+}
+
+function initSwipe() {
+  const track = document.getElementById('swipe-track');
+  const cap   = document.getElementById('swipe-cap');
+
+  // Clone to remove any previous listeners
+  const newCap = cap.cloneNode(true);
+  cap.parentNode.replaceChild(newCap, cap);
+
+  let x0 = 0, y0 = 0, intent = null; // intent: null | 'h' | 'v'
+
+  newCap.addEventListener('touchstart', e => {
+    x0 = e.touches[0].clientX;
+    y0 = e.touches[0].clientY;
+    intent = null;
+    track.style.transition = 'none';
+  }, { passive: true });
+
+  newCap.addEventListener('touchmove', e => {
+    const dx = e.touches[0].clientX - x0;
+    const dy = e.touches[0].clientY - y0;
+
+    if (!intent) {
+      if (Math.abs(dx) < 5 && Math.abs(dy) < 5) return;
+      intent = Math.abs(dx) >= Math.abs(dy) ? 'h' : 'v';
+    }
+
+    if (intent === 'h') {
+      const base    = sandboxPage === 0 ? 0 : -50;
+      const pct     = base + (dx / window.innerWidth) * 50;
+      const clamped = Math.max(-52, Math.min(2, pct));
+      track.style.transform = 'translateX(' + clamped + '%)';
+    }
+    // vertical: let iframe handle it (cap has touch-action:none but we don't prevent default here)
+  }, { passive: true });
+
+  newCap.addEventListener('touchend', e => {
+    track.style.transition = 'transform 0.3s cubic-bezier(.4,0,.2,1)';
+    if (intent !== 'h') { sandboxGoTo(sandboxPage); return; }
+    const dx = e.changedTouches[0].clientX - x0;
+    const threshold = window.innerWidth * 0.2;
+    if      (dx < -threshold && sandboxPage === 0) sandboxGoTo(1);
+    else if (dx >  threshold && sandboxPage === 1) sandboxGoTo(0);
+    else sandboxGoTo(sandboxPage);
+    intent = null;
+  }, { passive: true });
+}
+
+function openSandbox() {
+  const orig   = htmlContent;
+  const packed = generatedFiles['index.html'] || '';
+  if (!orig || !packed) { showToast('⚠ 請先完成打包', '#f59e0b'); return; }
+
+  const overlay = document.getElementById('sandbox-overlay');
+  overlay.style.display = 'flex';
+
+  document.getElementById('iframe-orig').srcdoc   = orig;
+  document.getElementById('iframe-packed').srcdoc = packed;
+
+  sandboxGoTo(0);
+  initSwipe();
+}
+
+function closeSandbox() {
+  document.getElementById('sandbox-overlay').style.display = 'none';
+  document.getElementById('iframe-orig').srcdoc   = '';
+  document.getElementById('iframe-packed').srcdoc = '';
+}
+
+// ─── GitHub Upload ────────────────────────────────────────
+function openGitHubPanel() {
+  const panel = document.getElementById('gh-panel');
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  if (panel.style.display === 'block') {
+    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+
+async function uploadToGitHub() {
+  const user   = document.getElementById('gh-user').value.trim();
+  const repo   = document.getElementById('gh-repo').value.trim();
+  const token  = document.getElementById('gh-token').value.trim();
+  const branch = document.getElementById('gh-branch').value.trim() || 'main';
+  const msg    = document.getElementById('gh-msg').value.trim() || 'deploy: PWA packer upload';
+
+  if (!user || !repo || !token) {
+    showToast('⚠ 請填寫 Username、Repo 和 Token', '#f59e0b'); return;
+  }
+  if (Object.keys(generatedFiles).length === 0) {
+    showToast('⚠ 請先打包檔案', '#f59e0b'); return;
+  }
+
+  const btn        = document.getElementById('gh-upload-btn');
+  const progress   = document.getElementById('gh-progress');
+  const progressBar= document.getElementById('gh-progress-bar');
+  const progressLbl= document.getElementById('gh-progress-label');
+  const fileListEl = document.getElementById('gh-file-list');
+  const resultEl   = document.getElementById('gh-result');
+
+  btn.disabled = true;
+  btn.innerHTML = '⏳ 上傳中…';
+  progress.style.display = 'block';
+  resultEl.style.display = 'none';
+  fileListEl.innerHTML = '';
+  progressBar.style.width = '0%';
+  progressBar.style.background = 'linear-gradient(90deg,#58a6ff,#3fb950)';
+
+  const base = 'https://api.github.com/repos/' + user + '/' + repo + '/contents/';
+  const headers = {
+    'Authorization': 'token ' + token,
+    'Content-Type': 'application/json',
+    'Accept': 'application/vnd.github.v3+json',
+  };
+
+  const files = Object.entries(generatedFiles);
+  let done = 0, errors = [];
+
+  for (const [name, content] of files) {
+    progressLbl.textContent = '(' + (done+1) + '/' + files.length + ') ' + name;
+
+    const b64 = name.endsWith('.png')
+      ? content
+      : btoa(unescape(encodeURIComponent(content)));
+
+    // Get existing SHA (needed for update)
+    let sha = null;
+    try {
+      const chk = await fetch(base + encodeURIComponent(name) + '?ref=' + branch, { headers });
+      if (chk.ok) { const d = await chk.json(); sha = d.sha; }
+    } catch(e) {}
+
+    const body = { message: msg, content: b64, branch };
+    if (sha) body.sha = sha;
+
+    let ok = false;
+    try {
+      const res = await fetch(base + encodeURIComponent(name), {
+        method: 'PUT', headers, body: JSON.stringify(body)
+      });
+      ok = res.status === 200 || res.status === 201;
+      if (!ok) {
+        const err = await res.json().catch(() => ({}));
+        errors.push(name + ': ' + (err.message || res.status));
+      }
+    } catch(e) {
+      errors.push(name + ': network error');
+    }
+
+    const row = document.createElement('div');
+    row.style.color = ok ? '#3fb950' : '#f85149';
+    row.textContent = (ok ? '✓ ' : '✕ ') + name;
+    fileListEl.appendChild(row);
+
+    done++;
+    progressBar.style.width = Math.round(done / files.length * 100) + '%';
+    await new Promise(r => setTimeout(r, 180));
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '🚀 一鍵上傳所有檔案';
+
+  const pagesUrl = 'https://' + user + '.github.io/' + repo + '/';
+  resultEl.style.display = 'block';
+
+  if (errors.length === 0) {
+    progressLbl.textContent = '✅ 全部上傳完成！';
+    progressBar.style.background = '#3fb950';
+    resultEl.style.cssText = 'display:block;margin-top:12px;padding:14px;border-radius:8px;' +
+      'background:rgba(46,160,67,0.1);border:1px solid rgba(46,160,67,0.4);' +
+      'font-size:0.82rem;font-family:var(--mono);color:#3fb950';
+    resultEl.innerHTML =
+      '✅ 成功上傳 ' + files.length + ' 個檔案！<br><br>' +
+      '🌐 Pages 網址（1~3 分鐘後生效）：<br>' +
+      '<a href="' + pagesUrl + '" target="_blank" ' +
+      'style="color:#58a6ff;word-break:break-all">' + pagesUrl + '</a><br><br>' +
+      '📋 首次部署：到 repo Settings → Pages → Branch 選 main → Save';
+  } else {
+    progressLbl.textContent = '⚠ 部分失敗（' + errors.length + ' 個）';
+    resultEl.style.cssText = 'display:block;margin-top:12px;padding:14px;border-radius:8px;' +
+      'background:rgba(248,81,73,0.1);border:1px solid rgba(248,81,73,0.4);' +
+      'font-size:0.82rem;font-family:var(--mono);color:#f85149';
+    resultEl.innerHTML = '❌ 失敗：' + errors.join('<br>') +
+      '<br><br>請確認 Token 有 repo 寫入權限，及帳號/repo 名稱是否正確';
+  }
+}
+
+const fileIcons = {
+  'index.html':        '🌐',
+  'sw.js':             '⚙',
+  'manifest.json':     '📋',
+  'icon.svg':          '🎨',
+  'icon-maskable.svg': '🛡',
+  'icon-192.png':      '🖼',
+  'icon-512.png':      '🖼',
+  'offline.html':      '📡',
+  'README.md':         '📖',
+  '.gitignore':        '🙈',
+  '.nojekyll':         '🔧',
+};
+
+function renderOutput() {
+  const grid = document.getElementById('output-grid');
+  grid.innerHTML = '';
+  for (const [name] of Object.entries(generatedFiles)) {
+    const isPng = name.endsWith('.png');
+    const content = generatedFiles[name];
+    const size = isPng ? Math.round(content.length * 0.75) : new Blob([content]).size;
+    const chip = document.createElement('div');
+    chip.className = 'file-chip';
+    chip.style.cursor = 'default';
+    const previewFn = isPng
+      ? `previewPng('${name}')`
+      : `previewFile('${name}',generatedFiles['${name}'])`;
+    chip.innerHTML = `
+      <span class="file-chip-icon">${fileIcons[name] || '📄'}</span>
+      <span class="file-chip-name">${name}</span>
+      <span class="file-chip-size">${formatSize(size)}</span>
+      <div style="display:flex;gap:6px;margin-top:6px">
+        <span class="chip-btn" onclick="event.stopPropagation();${previewFn}">👁 預覽</span>
+        <span class="chip-btn chip-dl" onclick="event.stopPropagation();downloadFileFull('${name}');showToast('⬇ ${name}')">⬇ 下載</span>
+      </div>
+    `;
+    grid.appendChild(chip);
+  }
+
+  // Run structural validation
+  if (htmlContent && generatedFiles['index.html']) {
+    const checks = validatePack(htmlContent, generatedFiles['index.html']);
+    renderValidation(checks);
+  }
+
+  document.getElementById('output-section').style.display = 'block';
+  document.getElementById('output-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ─── Preview modal ────────────────────────────────────────
+function previewFile(name, content) {
+  document.getElementById('modal-title').textContent = name;
+  document.getElementById('modal-content').textContent = content.length > 8000
+    ? content.slice(0, 8000) + '\n\n... (檔案過長，已截斷顯示)'
+    : content;
+  document.getElementById('modal-dl-btn').onclick = () => downloadFileFull(name);
+  document.getElementById('modal-dl-btn').style.display = '';
+  document.getElementById('modal').classList.add('open');
+}
+
+function previewPng(name) {
+  const b64 = generatedFiles[name];
+  document.getElementById('modal-title').textContent = name;
+  document.getElementById('modal-content').innerHTML =
+    `<img src="data:image/png;base64,${b64}" style="max-width:100%;display:block;margin:auto;image-rendering:pixelated">`;
+  document.getElementById('modal-dl-btn').onclick = () => downloadFileFull(name);
+  document.getElementById('modal-dl-btn').style.display = '';
+  document.getElementById('modal').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('open');
+  document.getElementById('modal-content').textContent = '';
+  document.getElementById('modal-content').innerHTML = '';
+}
+
+document.getElementById('modal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeModal();
+});
+
+// ─── Download ────────────────────────────────────────────
+function downloadFileFull(name) {
+  const content = generatedFiles[name];
+  if (!content && content !== '') return;
+  const isPng = name.endsWith('.png');
+  downloadFile(name, content, isPng);
+}
+
+function downloadFile(name, content, isPng = false) {
+  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+  if (isPng) {
+    // PNG: convert base64 → data URI
+    const uri = 'data:image/png;base64,' + content;
+    const a = document.createElement('a');
+    a.href = uri; a.download = name;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    return;
+  }
+
+  if (isIOS) {
+    // iOS: show in-page copy modal
+    showIOSModal(name, content);
+    return;
+  }
+
+  // Desktop: blob download
+  const mime = name.endsWith('.json') ? 'application/json'
+             : name.endsWith('.svg')  ? 'image/svg+xml'
+             : 'text/plain';
+  const blob = new Blob([content], { type: mime + ';charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function showIOSModal(name, content) {
+  // 彈出全文讓使用者手動複製
+  document.getElementById('modal-title').textContent = '📋 長按全選→複製 → 存為 ' + name;
+  document.getElementById('modal-content').textContent = content;
+  document.getElementById('modal-dl-btn').style.display = 'none';
+  document.getElementById('modal').classList.add('open');
+}
+
+function downloadAll() {
+  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+  if (isIOS) {
+    // iOS: 生成一個「部署包」HTML，開新分頁，使用者可長按→分享→儲存至檔案
+    generateDeployPage();
+    return;
+  }
+
+  // 桌面：逐一下載
+  const entries = Object.entries(generatedFiles);
+  entries.forEach(([name], i) => {
+    setTimeout(() => downloadFileFull(name), i * 300);
+  });
+  showToast(`⬇ 正在下載 ${entries.length} 個檔案…`);
+}
+
+function generateDeployPage() {
+  const files = Object.entries(generatedFiles);
+  const sections = files.map(([name, content]) => {
+    const escaped = content.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const id = 'dp-' + name.replace(/[^a-zA-Z0-9]/g,'-');
+    return `
+    <div style="margin-bottom:16px;border:1px solid #1e2d45;border-radius:10px;overflow:hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between;
+                  padding:10px 14px;background:#111827;border-bottom:1px solid #1e2d45">
+        <span style="font-family:monospace;font-size:.82rem;color:#7c3aed">${fileIcons[name]||'📄'} ${name}</span>
+        <button onclick="dpCopy('${id}',this)"
+          style="background:#00d4ff;color:#0a0e1a;border:none;border-radius:6px;
+                 padding:5px 12px;font-weight:700;font-size:.75rem;cursor:pointer">複製</button>
+      </div>
+      <pre id="${id}"
+        style="margin:0;padding:12px 14px;font-family:monospace;font-size:.7rem;
+               line-height:1.6;color:#a8c8f0;overflow-x:auto;white-space:pre-wrap;
+               word-break:break-all;max-height:180px;overflow-y:auto;background:#060a12">${escaped}</pre>
+    </div>`;
+  }).join('');
+
+  // Inject into a full-screen in-page overlay (no popup needed)
+  let overlay = document.getElementById('deploy-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'deploy-overlay';
+    overlay.style.cssText = `
+      position:fixed;inset:0;z-index:200;background:#0a0e1a;overflow-y:auto;
+      padding:16px 12px 48px;`;
+    document.body.appendChild(overlay);
+  }
+
+  overlay.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div>
+        <div style="font-size:1.1rem;font-weight:900;color:#00d4ff">📦 部署包</div>
+        <div style="font-size:.72rem;color:#64748b;font-family:monospace;margin-top:2px">
+          點「複製」→ 電腦新增對應檔案貼上
+        </div>
+      </div>
+      <button onclick="document.getElementById('deploy-overlay').style.display='none'"
+        style="background:#1e2d45;color:#e2e8f0;border:none;border-radius:8px;
+               padding:8px 16px;font-size:.85rem;cursor:pointer">✕ 關閉</button>
+    </div>
+    ${sections}
+    <div style="background:#111827;border:1px solid #7c3aed44;border-radius:10px;
+                padding:14px;font-size:.75rem;line-height:2;font-family:monospace;color:#64748b">
+      <span style="color:#e2e8f0;font-weight:bold">📋 電腦操作</span><br>
+      ① 建立資料夾，依檔名建立各檔案<br>
+      ② 貼上對應內容並存檔<br>
+      ③ git init → git add . → git commit -m "init"<br>
+      ④ push → GitHub Pages 開啟
+    </div>
+  `;
+  overlay.style.display = 'block';
+
+  // inject copy function into page scope
+  window.dpCopy = function(id, btn) {
+    const el = document.getElementById(id);
+    navigator.clipboard.writeText(el.innerText).then(() => {
+      btn.textContent = '✓ 已複製'; btn.style.background = '#10b981';
+      setTimeout(() => { btn.textContent = '複製'; btn.style.background = '#00d4ff'; }, 2000);
+    }).catch(() => {
+      // fallback: select text
+      const range = document.createRange();
+      range.selectNode(el);
+      window.getSelection().removeAllRanges();
+      window.getSelection().addRange(range);
+      showToast('請手動長按→全選→複製');
+    });
+  };
+
+  showToast('✓ 部署包已開啟');
+}
+
+// ─── Toast ────────────────────────────────────────────────
+function showToast(msg, color) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.background = color || 'var(--accent3)';
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+function scrollTop() {
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+</script>
+</body>
+</html>
