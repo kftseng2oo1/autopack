@@ -553,18 +553,6 @@
   /* hint */
   .hint { font-size: 0.73rem; color: var(--text-dim); margin-top: 4px; font-family: var(--mono); }
 </style>
-
-<!-- PWA Meta — auto-injected by PWA 打包神器 -->
-<meta name="application-name" content="打包神器">
-<meta name="description" content="Github打包上傳">
-<meta name="theme-color" content="#1a73e8">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="打包神器">
-<link rel="manifest" href="manifest.json">
-<link rel="apple-touch-icon" href="icon.svg">
-<script>if('serviceWorker'in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').then(function(r){console.log('[SW] registered:',r.scope)}).catch(function(e){console.warn('[SW] failed:',e)});});}</script>
 </head>
 <body>
 
@@ -763,7 +751,7 @@
       <div class="form-grid">
         <div class="field">
           <label>GitHub Username</label>
-          <input type="text" id="gh-user" placeholder="kftseng2oo1" autocapitalize="none">
+          <input type="text" id="gh-user" placeholder="kftseng2oo1" autocapitalize="none" value="kftseng2oo1">
         </div>
         <div class="field">
           <label>Repository 名稱</label>
@@ -773,7 +761,7 @@
           <label>Personal Access Token（需有 repo 權限）</label>
           <input type="password" id="gh-token" placeholder="ghp_xxxxxxxxxxxx" autocapitalize="none"
             autocomplete="off">
-          <p class="hint">⚠ Token 僅存在記憶體，不會儲存。
+          <p class="hint">
             <a href="https://github.com/settings/tokens/new?scopes=repo" target="_blank"
                style="color:#58a6ff">點此申請 Token →</a>
           </p>
@@ -785,6 +773,20 @@
         <div class="field">
           <label>Commit 訊息</label>
           <input type="text" id="gh-msg" value="deploy: PWA packer upload" placeholder="commit message">
+        </div>
+        <!-- Remember toggle -->
+        <div class="field full">
+          <label class="toggle" style="background:rgba(88,166,255,0.06);border-color:rgba(88,166,255,0.2)">
+            <input type="checkbox" id="gh-remember" onchange="ghToggleRemember()">
+            <span class="toggle-box">✓</span>
+            記住 Username、Repo 和 Token（儲存於 localStorage）
+          </label>
+          <div id="gh-saved-hint" style="display:none;font-size:0.72rem;font-family:var(--mono);
+               margin-top:6px;color:#3fb950">
+            ✓ 已儲存　
+            <span onclick="ghClearSaved()"
+              style="color:#f85149;cursor:pointer;text-decoration:underline">清除儲存資料</span>
+          </div>
         </div>
       </div>
 
@@ -1300,15 +1302,15 @@ function generateIndexHTML(raw, cfg, opts) {
 
   const inject = `
 <!-- PWA Meta — auto-injected by PWA 打包神器 -->
-
+<meta name="application-name" content="${esc(cfg.name)}">
 <meta name="description" content="${esc(cfg.desc)}">
-
-
-
-
-
-
-
+<meta name="theme-color" content="${cfg.theme}">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="${esc(cfg.short)}">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.svg">
 ${swBlock}`;
 
   // ── Step 3: Insert before </head> ──
@@ -1617,10 +1619,68 @@ function closeSandbox() {
 }
 
 // ─── GitHub Upload ────────────────────────────────────────
+const GH_STORAGE_KEY = 'pwa_packer_gh';
+
+function ghLoadSaved() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(GH_STORAGE_KEY) || 'null');
+    if (!saved) return;
+    if (saved.user)   document.getElementById('gh-user').value   = saved.user;
+    if (saved.repo)   document.getElementById('gh-repo').value   = saved.repo;
+    if (saved.token)  document.getElementById('gh-token').value  = saved.token;
+    if (saved.branch) document.getElementById('gh-branch').value = saved.branch;
+    document.getElementById('gh-remember').checked = true;
+    document.getElementById('gh-saved-hint').style.display = 'block';
+  } catch(e) {}
+}
+
+function ghSaveIfNeeded() {
+  if (!document.getElementById('gh-remember').checked) return;
+  try {
+    localStorage.setItem(GH_STORAGE_KEY, JSON.stringify({
+      user:   document.getElementById('gh-user').value.trim(),
+      repo:   document.getElementById('gh-repo').value.trim(),
+      token:  document.getElementById('gh-token').value.trim(),
+      branch: document.getElementById('gh-branch').value.trim(),
+    }));
+    document.getElementById('gh-saved-hint').style.display = 'block';
+  } catch(e) {}
+}
+
+function ghToggleRemember() {
+  const on = document.getElementById('gh-remember').checked;
+  if (!on) {
+    ghClearSaved();
+  } else {
+    ghSaveIfNeeded();
+  }
+}
+
+function ghClearSaved() {
+  try { localStorage.removeItem(GH_STORAGE_KEY); } catch(e) {}
+  document.getElementById('gh-remember').checked = false;
+  document.getElementById('gh-saved-hint').style.display = 'none';
+  showToast('🗑 已清除儲存的 GitHub 資料');
+}
+
 function openGitHubPanel() {
   const panel = document.getElementById('gh-panel');
   panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
   if (panel.style.display === 'block') {
+    ghLoadSaved(); // auto-fill saved credentials
+
+    // Auto-fill repo from scope field (e.g. /my-repo/ → my-repo)
+    const scope = document.getElementById('cfg-scope').value.trim();
+    const repoFromScope = scope.replace(/^\/|\/$/g, ''); // strip leading/trailing slashes
+    if (repoFromScope && repoFromScope !== '') {
+      const repoField = document.getElementById('gh-repo');
+      // Only override if field is empty or matches previous scope-derived value
+      if (!repoField.value || repoField.dataset.fromScope) {
+        repoField.value = repoFromScope;
+        repoField.dataset.fromScope = '1';
+      }
+    }
+
     panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 }
@@ -1707,6 +1767,8 @@ async function uploadToGitHub() {
 
   btn.disabled = false;
   btn.innerHTML = '🚀 一鍵上傳所有檔案';
+
+  ghSaveIfNeeded(); // save if remember is checked
 
   const pagesUrl = 'https://' + user + '.github.io/' + repo + '/';
   resultEl.style.display = 'block';
