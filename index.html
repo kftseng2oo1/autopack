@@ -996,6 +996,18 @@ function handleFile(file, type, zone, status) {
     const content = e.target.result;
     if (type === 'html') {
       htmlContent = content;
+      const warns = inspectSourceHTML(content);
+      if (warns.length) {
+        status.textContent = `⚠ ${file.name} (${formatSize(file.size)}) — 原始檔有問題：\n• ` + warns.join('\n• ');
+        status.className = 'upload-status';
+        status.style.whiteSpace = 'pre-line';
+        status.style.color = '#f59e0b';
+        zone.classList.add('loaded');
+        updateStepIndicator();
+        showToast('⚠ 原始 HTML 有 ' + warns.length + ' 個問題，打包前請先修正', '#f59e0b');
+        return;
+      }
+      status.style.color = '';
       status.textContent = `✓ ${file.name} (${formatSize(file.size)})`;
     } else {
       svgContent = content;
@@ -1170,7 +1182,8 @@ async function packPWA() {
 
   // ── 7. README.md ──────────────────────────────────────
   if (opts.readme) {
-    generatedFiles['README.md'] = generateReadme(cfg, Object.keys(generatedFiles));
+    generatedFiles['README.md'] = generateReadme(cfg, Object.keys(generatedFiles).concat('README.md'), htmlContent,
+      (document.getElementById('gh-user') || {}).value || '');
   }
 
   // ── 8. .gitignore ─────────────────────────────────────
@@ -1282,6 +1295,8 @@ function generateIndexHTML(raw, cfg, opts) {
   let html = raw;
 
   // ── Step 1: Remove existing duplicates via regex (safe, no DOM parse) ──
+  // 只處理 script 區塊「外面」的 HTML：script 內的字串（例如打包神器自己的原始碼）
+  // 若含有 <link rel="manifest"> 之類的文字，不可被刪掉，否則會破壞程式。
   const removeTags = [
     /<link[^>]+rel=["']manifest["'][^>]*>/gi,
     /<link[^>]+rel=["']apple-touch-icon["'][^>]*>/gi,
@@ -1292,7 +1307,10 @@ function generateIndexHTML(raw, cfg, opts) {
     /<meta[^>]+name=["']apple-mobile-web-app-status-bar-style["'][^>]*>/gi,
     /<meta[^>]+name=["']apple-mobile-web-app-title["'][^>]*>/gi,
   ];
-  removeTags.forEach(re => { html = html.replace(re, ''); });
+  html = mapOutsideScripts(html, seg => {
+    removeTags.forEach(re => { seg = seg.replace(re, ''); });
+    return seg;
+  });
 
   // Remove existing SW register script blocks
   // Strategy: parse script tags individually; only remove SW registration blocks
@@ -1312,18 +1330,20 @@ function generateIndexHTML(raw, cfg, opts) {
   const swCode = "if('serviceWorker'in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').then(function(r){console.log('[SW] registered:',r.scope)}).catch(function(e){console.warn('[SW] failed:',e)});});}";
   const swBlock = SC + swCode + SCE;
 
-  const inject = `
-<!-- PWA Meta — auto-injected by PWA 打包神器 -->
-
-<meta name="description" content="${esc(cfg.desc)}">
-
-
-
-
-
-
-
-${swBlock}`;
+  // 標籤用字串拼接產生（'<li'+'nk'、'<me'+'ta'），避免打包神器打包自己時被上面的移除規則誤刪
+  const LINK = '<li' + 'nk ', META = '<me' + 'ta ';
+  const hasDesc = /<meta[^>]+name=["']description["']/i.test(mapOutsideScripts(html, s => s, true));
+  const inject = '\n<!-- PWA Meta — auto-injected by PWA 打包神器 -->\n'
+    + (hasDesc || !cfg.desc ? '' : META + 'name="description" content="' + esc(cfg.desc) + '">\n')
+    + META + 'name="application-name" content="' + esc(cfg.short) + '">\n'
+    + META + 'name="theme-color" content="' + esc(cfg.theme) + '">\n'
+    + META + 'name="mobile-web-app-capable" content="yes">\n'
+    + META + 'name="apple-mobile-web-app-capable" content="yes">\n'
+    + META + 'name="apple-mobile-web-app-status-bar-style" content="default">\n'
+    + META + 'name="apple-mobile-web-app-title" content="' + esc(cfg.short) + '">\n'
+    + LINK + 'rel="manifest" href="manifest.json">\n'
+    + LINK + 'rel="apple-touch-icon" href="icon-192.png">\n'
+    + swBlock;
 
   // ── Step 3: Insert before </head> ──
   if (html.includes('</head>')) {
@@ -1337,7 +1357,58 @@ ${swBlock}`;
   return html;
 }
 
-function esc(s) { return (s||'').replace(/"/g, '&quot;'); }
+function esc(s) { return (s||'').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+
+// 把 HTML 切成「script 區塊」與「其他」，只對其他部分套用 fn。
+// 規則與瀏覽器相同：script 開始標籤起算，遇到第一個 script 結束標籤為止。
+// onlyOutside=true 時只回傳 script 以外的文字（用來檢查用）。
+function mapOutsideScripts(html, fn, onlyOutside) {
+  const re = /<script\b[^>]*>[\s\S]*?<\/script\s*>/gi;
+  let out = '', last = 0, m;
+  while ((m = re.exec(html)) !== null) {
+    out += fn(html.slice(last, m.index));
+    if (!onlyOutside) out += m[0];
+    last = m.index + m[0].length;
+  }
+  return out + fn(html.slice(last));
+}
+
+// 取出所有 inline script 的內容（略過 src= 外部檔、JSON、module）
+function inlineScripts(html) {
+  const list = [];
+  html.replace(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi, (m, attrs, body) => {
+    if (/\bsrc\s*=/i.test(attrs)) return m;
+    const t = (attrs.match(/type\s*=\s*["']?([^"'\s>]+)/i) || [])[1] || '';
+    if (t && !/javascript|ecmascript|^module$/i.test(t)) return m;
+    list.push({ body, module: /^module$/i.test(t) });
+    return m;
+  });
+  return list;
+}
+
+// 檢查 JS 語法（不執行）。回傳錯誤訊息陣列。
+function scriptSyntaxErrors(html) {
+  const errs = [];
+  inlineScripts(html).forEach((s, i) => {
+    if (s.module || !s.body.trim()) return;  // module 有 import/export，Function() 無法檢查
+    try { new Function(s.body); }
+    catch (e) { errs.push('第 ' + (i + 1) + ' 個 script：' + e.message); }
+  });
+  return errs;
+}
+
+// 上傳原始 HTML 時先檢查：截斷、語法錯誤、混入 Markdown 標記
+function inspectSourceHTML(html) {
+  const warn = [];
+  if (!/<\/html>\s*$/i.test(html.trim())) warn.push('結尾沒有 html 結束標籤，檔案可能被截斷');
+  // 依瀏覽器規則切出完整的 script 區塊後，外面若還有 script 開始標籤，就是沒有結尾的那一個
+  const outside = mapOutsideScripts(html, s => s, true);
+  if (/<script\b/i.test(outside)) warn.push('有 script 區塊沒有結尾標籤，程式後段可能被截斷');
+  if (/^\s*```/m.test(html))
+    warn.push('程式中有 Markdown 的 ``` 標記（可能是從聊天複製時混入）');
+  scriptSyntaxErrors(html).forEach(e => warn.push('語法錯誤 — ' + e));
+  return warn;
+}
 
 // ─── Offline page ─────────────────────────────────────────
 function generateOfflinePage(cfg) {
@@ -1392,46 +1463,84 @@ function generateDefaultSVG(cfg) {
 }
 
 // ─── README ───────────────────────────────────────────────
-function generateReadme(cfg, files) {
-  const fileList = files.map(f => `- \`${f}\``).join('\n');
-  return `# ${cfg.name}
+// 打包神器產生的 README 都帶這個標記；上傳時只會覆蓋帶標記的 README
+const README_MARK = '由 [PWA 打包神器]';
 
-> ${cfg.desc || '一個 Progressive Web App'}
+// 從原始 HTML 讀出 README 需要的資訊（純字串處理，不執行任何程式）
+function analyzeHTML(html) {
+  const strip = s => s.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&')
+                      .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/\s+/g, ' ').trim();
+  const pick = re => { const m = html.match(re); return m ? strip(m[1]) : ''; };
+  const markup = mapOutsideScripts(html, s => s, true).replace(/<style\b[\s\S]*?<\/style\s*>/gi, '');
+  const uniq = arr => arr.filter((v, i) => v && arr.indexOf(v) === i);
 
-## 📦 包含檔案
+  const title = pick(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  const desc  = (html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']*)["']/i) || [])[1] || '';
+  const headings = uniq((markup.match(/<h[1-3][^>]*>[\s\S]*?<\/h[1-3]>/gi) || []).map(strip))
+    .filter(h => h.length <= 40).slice(0, 12);
+  const buttons = uniq((markup.match(/<button[^>]*>[\s\S]*?<\/button>/gi) || []).map(strip))
+    .filter(b => b.length >= 2 && b.length <= 24 && !/^[✕×xX←→‹›+＋−－\-]+$/.test(b)).slice(0, 24);
 
-${fileList}
+  const js = inlineScripts(html).map(s => s.body).join('\n');
+  const hosts = uniq((html.match(/https?:\/\/[a-z0-9.-]+\.[a-z]{2,}/gi) || []).map(u => u.replace(/^https?:\/\//i, '').toLowerCase()))
+    .filter(h => !/^(www\.w3\.org|fonts\.(googleapis|gstatic)\.com|example\.com)$/.test(h));
+  const lsKeys = uniq((js.match(/localStorage\.(?:getItem|setItem)\(\s*['"`]([^'"`$]+)['"`]/g) || [])
+    .map(s => s.replace(/^.*\(\s*['"`]/, '').replace(/['"`]$/, ''))).slice(0, 15);
+  const models = uniq(js.match(/claude-[a-z0-9.-]+-\d{8}|claude-[a-z]+-\d(?:-\d)?(?:-\d{8})?|gemini-[0-9.]+-[a-z-]+|gpt-[0-9a-z.-]+/gi) || []).slice(0, 5);
 
-## 🚀 部署到 GitHub Pages
+  const FEATURES = [
+    ['getUserMedia', '相機'], ['geolocation', 'GPS 定位'], ['DeviceOrientation', '指南針／方向感測器'],
+    ['speechSynthesis', '語音朗讀'], ['SpeechRecognition', '語音輸入'], ['Notification', '通知'],
+    ['indexedDB', 'IndexedDB 本機資料庫'], ['MediaRecorder', '錄影／錄音'], ['navigator.share', '分享選單'],
+    ['clipboard', '剪貼簿'], ['AudioContext', 'Web Audio 音效'], ['getContext(', 'Canvas 繪圖'],
+    ['wakeLock', '螢幕常亮'], ['liff.', 'LINE LIFF'],
+  ];
+  const features = FEATURES.filter(([k]) => js.indexOf(k) !== -1).map(([, v]) => v);
+  const LIBS = [['jspdf', 'jsPDF'], ['xlsx', 'SheetJS'], ['jszip', 'JSZip'], ['chart.js', 'Chart.js'],
+                ['leaflet', 'Leaflet'], ['mathjs', 'math.js'], ['tesseract', 'Tesseract OCR']];
+  const libs = LIBS.filter(([k]) => new RegExp('<script[^>]+src=["\'][^"\']*' + k.replace('.', '\\.'), 'i').test(html)).map(([, v]) => v);
 
-\`\`\`bash
-git init
-git add .
-git commit -m "init: ${cfg.name} PWA"
-git branch -M main
-git remote add origin https://github.com/<username>/<repo>.git
-git push -u origin main
-\`\`\`
+  return { title, desc, headings, buttons, hosts, lsKeys, models, features, libs };
+}
 
-然後在 GitHub repo → **Settings → Pages** → Source 選 \`main\` 分支，等待幾分鐘後即可訪問。
+function generateReadme(cfg, files, html, ghUser) {
+  const a = analyzeHTML(html || '');
+  const repo = (cfg.scope || '/').replace(/^\/|\/$/g, '');
+  const url = repo && ghUser ? 'https://' + ghUser + '.github.io/' + repo + '/' : '';
+  const name = cfg.name && cfg.name !== 'My PWA App' ? cfg.name : (a.title || cfg.name);
+  const intro = cfg.desc || a.desc || '';
+  const L = [];
 
-## 📱 安裝 PWA
+  L.push('# ' + name, '');
+  if (intro) L.push(intro, '');
+  if (url) L.push('**線上使用**：' + url, '');
 
-在支援的瀏覽器（Chrome / Edge / Safari iOS）中打開網頁，  
-點擊「**安裝**」或「**加入主畫面**」即可將此 App 安裝到裝置。
+  L.push('## 主要功能', '');
+  L.push('<!-- 打包神器依程式內容自動整理，請補上一兩句這個 App 實際在做什麼 -->');
+  if (a.headings.length) L.push('- 畫面區塊：' + a.headings.join('、'));
+  if (a.buttons.length)  L.push('- 主要操作：' + a.buttons.join('、'));
+  if (a.features.length) L.push('- 使用到的裝置功能：' + a.features.join('、'));
+  if (!a.headings.length && !a.buttons.length && !a.features.length) L.push('- （待補）');
+  L.push('');
 
-## ⚙ 技術規格
+  L.push('## 技術與依賴', '');
+  L.push('- 單檔 HTML PWA（`index.html` 內含全部程式），`manifest.json` + `sw.js` 提供安裝到主畫面與離線快取');
+  if (a.hosts.length)  L.push('- 連線的外部服務：' + a.hosts.map(h => '`' + h + '`').join('、'));
+  if (a.models.length) L.push('- AI 模型：' + a.models.map(m => '`' + m + '`').join('、'));
+  if (a.libs.length)   L.push('- 函式庫：' + a.libs.join('、'));
+  if (a.lsKeys.length) L.push('- 本機資料（localStorage）：' + a.lsKeys.map(k => '`' + k + '`').join('、'));
+  if (!a.hosts.length) L.push('- 純前端，不連線外部服務');
+  L.push('');
 
-| 項目 | 值 |
-|------|-----|
-| display | ${cfg.display} |
-| theme_color | ${cfg.theme} |
-| lang | ${cfg.lang} |
-| scope | ${cfg.scope} |
+  L.push('## 檔案', '');
+  files.forEach(f => L.push('- `' + f + '`'));
+  L.push('');
 
----
-*由 [PWA 打包神器](https://github.com) 自動生成*
-`;
+  L.push('## 安裝到手機', '');
+  L.push('iOS：用 Safari 開啟網址 → 分享 → 加入主畫面。Android／桌面 Chrome：網址列的「安裝」按鈕。');
+  L.push('改版後若沒更新，把 `sw.js` 裡的 `CACHE_NAME` 版本號加一。', '');
+  L.push('---', '*' + README_MARK + '(https://github.com/kftseng2oo1/autopack) 自動生成。手動改寫後請刪掉這一行，之後重新打包上傳就不會覆蓋這份說明*');
+  return L.join('\n') + '\n';
 }
 
 // ─── Validation ───────────────────────────────────────────
@@ -1519,6 +1628,29 @@ function validatePack(original, packed) {
     detail: lost > 0
       ? '❌ 原始有 ' + origNE + ' 個有效 script，打包後剩 ' + packNE + ' 個，遺失 ' + lost + ' 個！'
       : '✓ 原始 ' + origNE + ' 個 → 打包後 ' + packNE + ' 個（含新增 SW 註冊）'
+  });
+
+  // 8. JavaScript 語法：逐一檢查 inline script 能否被解析（抓截斷與混入的雜訊）
+  const origErr = scriptSyntaxErrors(original);
+  const packErr = scriptSyntaxErrors(packed);
+  checks.push({
+    ok: packErr.length === 0,
+    label: 'JavaScript 語法',
+    detail: packErr.length === 0
+      ? '✓ 所有 script 都能正常解析'
+      : '❌ ' + packErr.join('；') + (origErr.length ? '（原始檔就有此問題）' : '（打包後才出現）')
+  });
+
+  // 9. 主程式大小：打包後的 script 總長度不應少於原始檔
+  // 不計入 SW 註冊小段落（打包時會被替換）
+  const isSWReg = b => b.length < 2000 && b.indexOf('serviceWorker') !== -1 && /["']sw\.js["']/.test(b);
+  const jsLen = h => inlineScripts(h).reduce((n, s) => n + (isSWReg(s.body) ? 0 : s.body.length), 0);
+  const oJs = jsLen(original), pJs = jsLen(packed);
+  checks.push({
+    ok: pJs >= oJs * 0.98,
+    label: '主程式完整性',
+    detail: '原始 JS ' + formatSize(oJs) + ' → 打包後 ' + formatSize(pJs)
+      + (pJs < oJs * 0.98 ? ' ❌ 程式碼變少了，可能被截斷' : '')
   });
 
   return checks;
@@ -1744,11 +1876,26 @@ async function uploadToGitHub() {
       : btoa(unescape(encodeURIComponent(content)));
 
     // Get existing SHA (needed for update)
-    let sha = null;
+    let sha = null, existing = null;
     try {
       const chk = await fetch(base + encodeURIComponent(name) + '?ref=' + branch, { headers });
-      if (chk.ok) { const d = await chk.json(); sha = d.sha; }
+      if (chk.ok) { existing = await chk.json(); sha = existing.sha; }
     } catch(e) {}
+
+    // 已有 README 且不是打包神器產生的（手寫或整理過的）→ 不覆蓋
+    if (name === 'README.md' && existing && existing.content) {
+      let old = '';
+      try { old = decodeURIComponent(escape(atob(existing.content.replace(/\n/g, '')))); } catch(e) {}
+      if (old.indexOf(README_MARK) === -1) {
+        const row = document.createElement('div');
+        row.style.color = '#f59e0b';
+        row.textContent = '↷ README.md（repo 已有自己的說明，保留不覆蓋）';
+        fileListEl.appendChild(row);
+        done++;
+        progressBar.style.width = Math.round(done / files.length * 100) + '%';
+        continue;
+      }
+    }
 
     const body = { message: msg, content: b64, branch };
     if (sha) body.sha = sha;
@@ -1908,8 +2055,22 @@ function downloadFile(name, content, isPng = false) {
   }
 
   if (isIOS) {
-    // iOS: show in-page copy modal
+    // iOS：優先用分享選單「儲存到檔案」，檔案完整不會漏；
+    // 長按複製大段文字很容易只複製到一部分（曾造成 index.html 被截斷）
+    try {
+      const type = name.endsWith('.json') ? 'application/json'
+                 : name.endsWith('.svg') ? 'image/svg+xml'
+                 : name.endsWith('.html') ? 'text/html' : 'text/plain';
+      const f = new File([content], name, { type });
+      if (navigator.canShare && navigator.canShare({ files: [f] })) {
+        navigator.share({ files: [f], title: name }).catch(() => {});
+        return;
+      }
+    } catch(e) {}
     showIOSModal(name, content);
+    if (content.length > 50000) {
+      showToast('⚠ 檔案較大（' + formatSize(content.length) + '），手動複製容易漏掉後段，建議用「上傳到 GitHub」', '#f59e0b');
+    }
     return;
   }
 
