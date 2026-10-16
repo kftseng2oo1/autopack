@@ -1307,6 +1307,12 @@ function generateIndexHTML(raw, cfg, opts) {
     /<meta[^>]+name=["']apple-mobile-web-app-status-bar-style["'][^>]*>/gi,
     /<meta[^>]+name=["']apple-mobile-web-app-title["'][^>]*>/gi,
   ];
+  // 原檔若已設定 iOS 狀態列樣式（例如 black-translucent 讓畫面延伸到狀態列），沿用原值，避免改變排版
+  const outsideRaw = mapOutsideScripts(html, s => s, true);
+  const statusBar = (outsideRaw.match(/<meta[^>]+name=["']apple-mobile-web-app-status-bar-style["'][^>]+content=["']([^"']+)["']/i)
+                  || outsideRaw.match(/<meta[^>]+content=["']([^"']+)["'][^>]+name=["']apple-mobile-web-app-status-bar-style["']/i)
+                  || [])[1] || 'default';
+
   html = mapOutsideScripts(html, seg => {
     removeTags.forEach(re => { seg = seg.replace(re, ''); });
     return seg;
@@ -1334,12 +1340,12 @@ function generateIndexHTML(raw, cfg, opts) {
   const LINK = '<li' + 'nk ', META = '<me' + 'ta ';
   const hasDesc = /<meta[^>]+name=["']description["']/i.test(mapOutsideScripts(html, s => s, true));
   const inject = '\n<!-- PWA Meta — auto-injected by PWA 打包神器 -->\n'
-    + (hasDesc || !cfg.desc ? '' : META + 'name="description" content="' + esc(cfg.desc) + '">\n')
+    + (hasDesc || !cfg.desc || cfg.desc === cfg.name || cfg.desc === cfg.short ? '' : META + 'name="description" content="' + esc(cfg.desc) + '">\n')
     + META + 'name="application-name" content="' + esc(cfg.short) + '">\n'
     + META + 'name="theme-color" content="' + esc(cfg.theme) + '">\n'
     + META + 'name="mobile-web-app-capable" content="yes">\n'
     + META + 'name="apple-mobile-web-app-capable" content="yes">\n'
-    + META + 'name="apple-mobile-web-app-status-bar-style" content="default">\n'
+    + META + 'name="apple-mobile-web-app-status-bar-style" content="' + esc(statusBar) + '">\n'
     + META + 'name="apple-mobile-web-app-title" content="' + esc(cfg.short) + '">\n'
     + LINK + 'rel="manifest" href="manifest.json">\n'
     + LINK + 'rel="apple-touch-icon" href="icon-192.png">\n'
