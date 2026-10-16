@@ -2,7 +2,7 @@
 // Cache key: 打包上傳-v1
 // Strategy: Stale-While-Revalidate (HTML) + Cache-First (assets)
 
-const CACHE_NAME = '打包上傳-v1';
+const CACHE_NAME = '打包上傳-v2';
 const PRECACHE_URLS = [
     "/autopack/index.html",
     "/autopack/sw.js",
